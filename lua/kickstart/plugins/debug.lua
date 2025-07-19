@@ -18,12 +18,51 @@ return {
     'nvim-neotest/nvim-nio',
 
     -- Installs the debug adapters for you
-    'mason-org/mason.nvim',
+    {
+      'mason-org/mason.nvim',
+      optional = true,
+      opts = { ensure_installed = { 'codelldb' } },
+    },
     'jay-babu/mason-nvim-dap.nvim',
-
-    -- Add your own debuggers here
-    'leoluz/nvim-dap-go',
   },
+
+  opts = function()
+    local dap = require 'dap'
+    if not dap.adapters['codelldb'] then
+      require('dap').adapters['codelldb'] = {
+        type = 'server',
+        host = 'localhost',
+        port = '${port}',
+        executable = {
+          command = 'codelldb',
+          args = {
+            '--port',
+            '${port}',
+          },
+        },
+      }
+    end
+    for _, lang in ipairs { 'c', 'cpp' } do
+      dap.configurations[lang] = {
+        {
+          type = 'codelldb',
+          reequest = 'launch',
+          name = 'Launch file',
+          program = function()
+            return vim.fn.input('Path to executable: ', vim.fn.getcwd() .. '/', 'file')
+          end,
+          cwd = '${workspaceFolder}',
+        },
+        {
+          type = 'codelldb',
+          request = 'attach',
+          name = 'Attach to process',
+          pid = require('dap.utils').pick_process,
+          cwd = '${workspaceFolder}',
+        },
+      }
+    end
+  end,
   keys = {
     -- Basic debugging keymaps, feel free to change to your liking!
     {
@@ -135,14 +174,5 @@ return {
     dap.listeners.after.event_initialized['dapui_config'] = dapui.open
     dap.listeners.before.event_terminated['dapui_config'] = dapui.close
     dap.listeners.before.event_exited['dapui_config'] = dapui.close
-
-    -- Install golang specific config
-    require('dap-go').setup {
-      delve = {
-        -- On Windows delve must be run attached or it crashes.
-        -- See https://github.com/leoluz/nvim-dap-go/blob/main/README.md#configuring
-        detached = vim.fn.has 'win32' == 0,
-      },
-    }
   end,
 }
